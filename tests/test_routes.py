@@ -11,16 +11,6 @@ from app.schemas import ReservationStatusEnum
         (
             {
                 "reservation_id": "123",
-                "product_id": "123",
-                "quantity": 10,
-                "timestamp": str(datetime.now(UTC)),
-            },
-            ReservationStatusEnum.error,
-            404,
-        ),
-        (
-            {
-                "reservation_id": "123",
                 "product_id": "1",
                 "quantity": 1000,
                 "timestamp": str(datetime.now(UTC)),

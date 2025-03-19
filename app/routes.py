@@ -1,5 +1,6 @@
 from fastapi import Depends, APIRouter
 from fastapi.responses import JSONResponse
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
@@ -18,28 +19,25 @@ api_router = APIRouter(prefix="/api/v1")
 async def create_reservation(
     reservation_data: CreateReservation, session: AsyncSession = Depends(get_db)
 ):
-    product = await session.get(
-        Product, reservation_data.product_id, with_for_update=True
-    )
-    if not product:
-        return JSONResponse(
-            status_code=404,
-            content={
-                "status": ReservationStatusEnum.error,
-                "message": "Product doesnt exist",
-                "reservation_id": str(reservation_data.reservation_id),
-            },
+    result = await session.execute(
+        update(Product)
+        .where(
+            Product.id == reservation_data.product_id,
+            Product.quantity >= reservation_data.quantity,
         )
-    if product.quantity < reservation_data.quantity:
+        .values(quantity=Product.quantity - reservation_data.quantity)
+        .returning(Product)
+    )
+    product = result.scalar_one_or_none()
+    if not product:
         return JSONResponse(
             status_code=409,
             content={
                 "status": ReservationStatusEnum.error,
-                "message": "Not enough stock available",
+                "message": "Not enough stock available or wrong product id",
                 "reservation_id": str(reservation_data.reservation_id),
             },
         )
-    product.quantity -= reservation_data.quantity
     reservation = Reservation(
         id=reservation_data.reservation_id,
         quantity=reservation_data.quantity,
@@ -115,8 +113,11 @@ async def cancel_reservation(
                 "reservation_id": str(reservation_id),
             },
         )
-    product = await session.get(Product, reservation.product_id, with_for_update=True)
-    product.quantity += reservation.quantity
+    await session.execute(
+        update(Product)
+        .where(Product.id == reservation.product_id)
+        .values(quantity=Product.quantity + reservation.quantity)
+    )
     reservation.status = ReservationStatusEnum.cancelled
     await session.commit()
     return JSONResponse(
