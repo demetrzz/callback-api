@@ -7,6 +7,7 @@ services:
       - "8000"
     ports:
       - "127.0.0.1:18000:8000"
+    command: [ "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000" ]
     depends_on:
       db:
         condition: service_healthy
@@ -28,9 +29,8 @@ services:
       retries: 5
   reservation_cron:
     tty: true
-    build:
-      context: .
-      dockerfile: Dockerfile.cron
+    build: .
+    command: [ "python", "app/reservation_cron.py" ]
     depends_on:
       db:
         condition: service_healthy
