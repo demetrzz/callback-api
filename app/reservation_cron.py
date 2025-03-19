@@ -1,6 +1,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
-from sqlalchemy import select
+from sqlalchemy import select, update
 from app.db import SessionLocal
 from app.schemas import ReservationStatusEnum
 from app.models import Product, Reservation
@@ -19,14 +19,21 @@ async def process_expired_reservations():
             .with_for_update()
         )
         reservations = result.scalars().all()
+        print(
+            f"Cancelling reservations {[reservation.id for reservation in reservations]}"
+        )
+        product_updates = {}
         for reservation in reservations:
-            print(f"Cancelling reservation {reservation.id}")
-            reservation.status = ReservationStatusEnum.cancelled
-            product = await session.get(
-                Product, reservation.product_id, with_for_update=True
+            product_updates[reservation.product_id] = (
+                product_updates.get(reservation.product_id, 0) + reservation.quantity
             )
-            if product:
-                product.quantity += reservation.quantity
+            reservation.status = ReservationStatusEnum.cancelled
+        for product_id, quantity in product_updates.items():
+            await session.execute(
+                update(Product)
+                .where(Product.id == product_id)
+                .values(quantity=Product.quantity + quantity)
+            )
         await session.commit()
 
 
