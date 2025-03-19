@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  callback_api:
+    build: .
+    expose:
+      - "8000"
+    ports:
+      - "127.0.0.1:18000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: postgres
+    environment:
+      POSTGRES_USER: postgres_user
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_DB: postgres_db
+    restart: unless-stopped
+    expose:
+      - "5432"
+    ports:
+      - "127.0.0.1:15432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  reservation_cron:
+    tty: true
+    build:
+      context: .
+      dockerfile: Dockerfile.cron
+    depends_on:
+      db:
+        condition: service_healthy
+      callback_api:
+        condition: service_started
+    restart: unless-stopped
